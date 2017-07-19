@@ -8,8 +8,16 @@ export default class Home extends Component {
     return (
       <div>
         <div className={styles.container} data-tid="container">
-          <h2>Home</h2>
-          <Link to="/counter">to Counter</Link>
+          <img className={styles.logo} src="../resources/images/dmvlogo.png" />
+          <h2>Main Technician Window</h2>
+          <p><Link to="/multiwindow">Multi-window Example</Link></p>
+          <p><Link to="/counter">Counter Example</Link></p>
+
+          <small>
+            We are using node {process.versions.node},
+            Chromium {process.versions.chrome},
+            and Electron {process.versions.electron}.
+          </small>
         </div>
       </div>
     );

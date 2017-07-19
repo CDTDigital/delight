@@ -10,10 +10,12 @@
  *
  * @flow
  */
-import { app, BrowserWindow } from 'electron';
+import { app, screen, BrowserWindow, ipcMain } from 'electron';
 import MenuBuilder from './menu';
+import path from 'path';
 
 let mainWindow = null;
+let customerWindow = null;
 
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
@@ -53,22 +55,55 @@ app.on('window-all-closed', () => {
   }
 });
 
+function findDisplays () {
+  const displays = screen.getAllDisplays();
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const secondaryDisplay = displays.find((display) => {
+    return display.bounds.x !== 0 || display.bounds.y !== 0;
+  });
+  const touchscreenDisplay = displays.find((display) => {
+    return display.touchSupport == 'available';
+  });
+  return {
+    primaryDisplay,
+    secondaryDisplay,
+    touchscreenDisplay
+  };
+}
 
 app.on('ready', async () => {
   if (process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true') {
     await installExtensions();
   }
 
-  mainWindow = new BrowserWindow({
-    show: false,
-    width: 1024,
-    height: 728
+  console.log(findDisplays());
+  const { primaryDisplay, secondaryDisplay, touchscreenDisplay } = findDisplays();
+  const customerDisplay = touchscreenDisplay || secondaryDisplay;
+
+  screen.on('display-added', (e, newDisplay) => {
+    alert('display-added id: ' + newDisplay.id);
+  });
+  screen.on('display-removed', (e, oldDisplay) => {
+    alert('display-removed id: ' + oldDisplay.id);
+  });
+  screen.on('display-metrics-changed', (e, display, changedMetrics) => {
+    alert('display-metrics-changed:\n' + changedMetrics.join('\n'));
   });
 
-  mainWindow.loadURL(`file://${__dirname}/app.html`);
+  const resizeToFitDisplay = function (window, display) {
+    const {x, y, width, height} = display.workArea;
+    window.setBounds({x, y, width, height});
+  }
 
-  // @TODO: Use 'ready-to-show' event
-  //        https://github.com/electron/electron/blob/master/docs/api/browser-window.md#using-ready-to-show-event
+  mainWindow = new BrowserWindow({
+    show: false,
+    minWidth: 1024,
+    minHeight: 728,
+    frame: true,
+    center: true,
+    title: 'Delight :: Technician Window'
+  });
+  mainWindow.loadURL(`file://${__dirname}/app.html`);
   mainWindow.webContents.on('did-finish-load', () => {
     if (!mainWindow) {
       throw new Error('"mainWindow" is not defined');
@@ -76,11 +111,56 @@ app.on('ready', async () => {
     mainWindow.show();
     mainWindow.focus();
   });
-
+  mainWindow.once('ready-to-show', () => {
+    console.log('mainWindow ready-to-show event')
+  });
   mainWindow.on('closed', () => {
     mainWindow = null;
+    if (customerWindow) customerWindow.close();
   });
 
   const menuBuilder = new MenuBuilder(mainWindow);
   menuBuilder.buildMenu();
+
+  customerWindow = new BrowserWindow({
+    title: 'Delight :: Customer Window',
+    show: false,
+    minWidth: 640,
+    minHeight: 480,
+    frame: false,
+    center: true,
+    resizable: false,
+    minimizable: false,
+    closable: true
+  });
+  customerWindow.loadURL(`file://${__dirname}/app.html#/customer`);
+  customerWindow.webContents.on('did-finish-load', () => {
+    console.log('customerWindow did-finish-load event');
+    if (!customerWindow) {
+      throw new Error('"customerWindow" is not defined');
+    }
+    resizeToFitDisplay(customerWindow, customerDisplay);
+    customerWindow.webContents.send('show-test-route');
+  });
+  customerWindow.once('ready-to-show', () => {
+    console.log('customerWindow ready-to-show event');
+  });
+  customerWindow.on('closed', () => {
+    console.warn('customerWindow close event');
+    customerWindow = null;
+  });
+
+  ipcMain.on('show-customer-window', () => {
+    console.log('show-customer-window');
+    if (!customerWindow.isVisible()) {
+      customerWindow.show();
+      customerWindow.focus();
+    }
+  });
+
+  ipcMain.on('hide-customer-window', () => {
+    console.log('hide-customer-window');
+    customerWindow.hide();
+  });
+
 });
