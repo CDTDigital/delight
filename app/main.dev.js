@@ -72,9 +72,10 @@ function findDisplays () {
 }
 
 app.on('ready', async () => {
-  if (process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true') {
-    await installExtensions();
-  }
+  // if (process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true') {
+  //   await installExtensions();
+  // }
+  await installExtensions();
 
   console.log(findDisplays());
   const { primaryDisplay, secondaryDisplay, touchscreenDisplay } = findDisplays();
@@ -122,32 +123,36 @@ app.on('ready', async () => {
   const menuBuilder = new MenuBuilder(mainWindow);
   menuBuilder.buildMenu();
 
-  customerWindow = new BrowserWindow({
-    title: 'Delight :: Customer Window',
-    show: false,
-    minWidth: 640,
-    minHeight: 480,
-    frame: false,
-    center: true,
-    resizable: false,
-    minimizable: false,
-    closable: true
-  });
-  customerWindow.loadURL(`file://${__dirname}/app.html#/customer`);
+  const createCustomerWindow = function () {
+    customerWindow = new BrowserWindow({
+      title: 'Delight :: Customer Window',
+      show: false,
+      minWidth: 640,
+      minHeight: 480,
+      frame: false,
+      center: true,
+      resizable: false,
+      minimizable: false,
+      movable: false,
+      closable: true
+    });
+    customerWindow.loadURL(`https://stateofca.github.io/dmv-mock-phoebe/`);
+  }
+  createCustomerWindow();
   customerWindow.webContents.on('did-finish-load', () => {
     console.log('customerWindow did-finish-load event');
     if (!customerWindow) {
       throw new Error('"customerWindow" is not defined');
     }
     resizeToFitDisplay(customerWindow, customerDisplay);
-    customerWindow.webContents.send('show-test-route');
+    // customerWindow.webContents.openDevTools()
   });
   customerWindow.once('ready-to-show', () => {
     console.log('customerWindow ready-to-show event');
   });
   customerWindow.on('closed', () => {
     console.warn('customerWindow close event');
-    customerWindow = null;
+    createCustomerWindow();
   });
 
   ipcMain.on('show-customer-window', () => {
